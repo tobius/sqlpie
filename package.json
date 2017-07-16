@@ -1,5 +1,5 @@
 {
-  "name": "sqlpie",
+  "name": "@tobius/sqlpie",
   "version": "0.1.0",
   "description": "CLI find/replace for SQL files",
   "main": "index.js",
@@ -25,5 +25,12 @@
   "bugs": {
     "url": "https://github.com/tobius/sqlpie/issues"
   },
-  "homepage": "https://github.com/tobius/sqlpie#readme"
+  "homepage": "https://github.com/tobius/sqlpie#readme",
+  "keywords": [
+    "node",
+    "sql",
+    "cli",
+    "find",
+    "replace"
+  ]
 }
