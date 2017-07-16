@@ -12,10 +12,10 @@ var _ = require('lodash'),
 program
 	.version(pjson.version)
 	.option('-i, --input <input-file>', 'Input File')
-	.option('-o, --output <output-file>', 'Output File')
+	.option('-o, --output [output-file]', 'Output File (default=stdout)')
 	.option('-f, --find <find-string>', 'Find String')
 	.option('-r, --replace <replace-string>', 'Replace String')
-	.option('-v, --verbose [boolean]', 'Verbose Output', function(value){
+	.option('-v, --verbose [boolean]', 'Verbose Output (default=false)', function(value){
 		value = value === null || value === undefined ? '' : value;
 		value = value.toString().toLowerCase().trim();
 		return /^1|(true)$/.test(value);
@@ -27,14 +27,12 @@ var options = {
 	input: program.input,
 	output: program.output,
 	find: program.find,
-	replace: program.replace
+	replace: program.replace,
+	verbose: program.verbose
 };
 
-// honor verbose
-var verbose = program.verbose;
-
 // test cli options
-if (_.compact(_.values(options)).length !== 4){
+if (!options.input || !options.find || !options.replace){
 	return program.outputHelp();
 }
 
@@ -130,8 +128,8 @@ function rewriteSerializedSql(sql, find, replace, callback){
 
 	// get serialized string count
 	var stringCountOutput = withCommas(strings.length);
-	if (program.verbose){
-		console.log('SERIALIZED STRINGS: ' + stringCountOutput);
+	if (options.verbose){
+		console.log('-- SERIALIZED STRINGS: ' + stringCountOutput);
 	}
 
 	// create rewrite values
@@ -156,8 +154,8 @@ function rewriteSerializedSql(sql, find, replace, callback){
 
 	// get serialized match count
 	var replaceCountOutput = withCommas(replaceCount);
-	if (program.verbose){
-		console.log('SERIALIZED MATCHES: ' + replaceCountOutput);
+	if (options.verbose){
+		console.log('-- SERIALIZED MATCHES: ' + replaceCountOutput);
 	}
 
 	// stop if we can
@@ -166,10 +164,10 @@ function rewriteSerializedSql(sql, find, replace, callback){
 	}
 
 	// everybody loves feedback
-	if (program.verbose){
+	if (options.verbose){
 
 		// replace while showing a loading bar
-		var bar = new ProgressBar('REWRITING STRINGS: :outputCurrent of :outputTotal | :percent' , {
+		var bar = new ProgressBar('-- REWRITING STRINGS: :outputCurrent of :outputTotal | :percent' , {
 			incomplete: '-',
 			complete: '=',
 			renderThrottle: 16,
@@ -215,7 +213,7 @@ function initialize(callback){
 	// get sql
 	var sql = readFile(options.input);
 	if (!sql){
-		return callback(new Error('MISSING SQL'));
+		return callback('MISSING SQL');
 	}
 
 	// organize data
@@ -229,11 +227,11 @@ function initialize(callback){
 	};
 
 	// verbose output
-	if (program.verbose){
-		console.log('INPUT: ' + data.input);
-		console.log('FIND: ' + data.find);
-		console.log('REPLACE: ' + data.replace);
-		console.log('MATCHES: ' + withCommas(data.count));
+	if (options.verbose){
+		console.log('-- INPUT: ' + data.input);
+		console.log('-- FIND: ' + data.find);
+		console.log('-- REPLACE: ' + data.replace);
+		console.log('-- MATCHES: ' + withCommas(data.count));
 	}
 
 	// ready to start
@@ -300,14 +298,26 @@ function complete(err, data){
 		process.exit(1);
 	}
 
-	// write file
-	writeFile(data.output, data.sql);
-
-	// finished
-	if (program.verbose){
-		console.log('POST MATCHES: ' + withCommas(countMatches(data.find, data.sql)));
-		console.log('OUTPUT: ' + data.output);
+	// recount
+	var count = countMatches(data.find, data.sql);
+	if (count !== 0){
+		if (options.verbose){
+			console.error('-- MISSED ' + count + ' INSTANCES');
+		}
+		process.exit(1);
 	}
+
+	// write file
+	if (options.output){
+		writeFile(data.output, data.sql);
+		if (options.verbose){
+			console.log('-- OUTPUT: ' + data.output);
+		}
+	} else {
+		console.log(data.sql);
+	}
+
+	// done
 	process.exit(0);
 }
 
