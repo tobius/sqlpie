@@ -103,7 +103,7 @@ function formatSecondsIntoTimeRemaining(seconds){
 	delta -= minutes * 60;
 
 	// seconds
-	var seconds = delta % 60;
+	seconds = delta % 60;
 
 	// format
 	return _.compact([
@@ -163,7 +163,7 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 	// get all serialized strings from sql
 	var strings = findSerializedStrings(sql);
 
-	// @todo use verbose level
+	// get serialized string count
 	var stringCountOutput = formatNumberWithCommas(strings.length);
 	if (program.verbose){
 		console.log('SERIALIZED STRINGS: ' + stringCountOutput);
@@ -183,19 +183,24 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 		}
 		return string;
 	});
+
+	// remove empties
 	strings = _.filter(strings, function(string){
 		return string.rewriteChars !== 0;
 	});
-	// @todo use verbose level
+
+	// get serialized match count
 	var replaceCountOutput = formatNumberWithCommas(replaceCount);
 	if (program.verbose){
 		console.log('SERIALIZED MATCHES: ' + replaceCountOutput);
 	}
 
+	// stop if we can
 	if (replaceCount === 0){
 		return callback(null, sql);
 	}
 
+	// everybody loves feedback
 	if (program.verbose){
 
 		// replace while showing a loading bar
@@ -344,40 +349,4 @@ async.waterfall([
 	reserialize,
 	rewrite
 ], finish);
-
-/*
-// input
-console.info('READING SQL FROM ' + options.input);
-var inputSql = getFileContents(options.input);
-
-// pretest
-var count = countMatches(options.find, inputSql);
-var countOutput = formatNumberWithCommas(count);
-console.log('FOUND ' + countOutput + ' INSTANCES OF "' + options.find + '"');
-if (count === 0){
-	console.log('SKIPPING WRITE');
-	process.exit();
-}
-
-// rewrite
-rewriteSerializedStrings(inputSql, options.find, options.replace, function(err, outputSql){
-
-	// retest
-	count = countMatches(options.find, outputSql);
-	countOutput = formatNumberWithCommas(count);
-	console.log('FOUND ' + countOutput + ' REMAINING INSTANCES OF "' + options.find + '"');
-	if (count === 0){
-		console.info('WRITING SQL TO ' + options.output);
-		putFileContents(options.output, outputSql);
-		process.exit();
-	}
-
-	var re = new RegExp(options.find, 'gm');
-	outputSql = outputSql.replace(re, options.replace);
-	console.log('REWRITING REMAINING ' + countOutput + ' STRINGS');
-	console.info('WRITING SQL TO ' + options.output);
-	putFileContents(options.output, outputSql);
-	process.exit();
-});
-*/
 
