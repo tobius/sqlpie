@@ -1,5 +1,5 @@
 {
-  "name": "@tobius/sqlpie",
+  "name": "sqlpie",
   "version": "0.1.0",
   "description": "CLI find/replace for SQL files",
   "main": "index.js",
