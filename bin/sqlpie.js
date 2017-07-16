@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// modules
+// load required modules
 var _ = require('lodash'),
 	async = require('async'),
 	fs = require('fs'),
@@ -8,7 +8,7 @@ var _ = require('lodash'),
 	program = require('commander'),
 	ProgressBar = require('progress');
 
-// cli config
+// configure cli options
 program
 	.version(pjson.version)
 	.option('-i, --input <input-file>', 'Input File')
@@ -22,7 +22,7 @@ program
 	}, false)
 	.parse(process.argv);
 
-// cli options
+// organize cli options
 var options = {
 	input: program.input,
 	output: program.output,
@@ -30,10 +30,10 @@ var options = {
 	replace: program.replace
 };
 
-// test verbosity
+// honor verbose
 var verbose = program.verbose;
 
-// all or nothing
+// test cli options
 if (_.compact(_.values(options)).length !== 4){
 	return program.outputHelp();
 }
@@ -43,12 +43,12 @@ if (_.compact(_.values(options)).length !== 4){
 //=================================================================//
 
 /**
- * get file contents
+ * read file contents
  *
  * @param {String} path
  * @return {String}
  */
-function getFileContents(path){
+function readFile(path){
 	var contents = '';
 	try {
 		if (fs.lstatSync(path).isFile()){
@@ -59,59 +59,24 @@ function getFileContents(path){
 }
 
 /**
- * put file contents
+ * write file contents
  *
  * @param {String} path
  * @param {String} contents
  * @return {Void}
  */
-function putFileContents(path, contents){
+function writeFile(path, contents){
 	fs.writeFileSync(path, contents, 'utf8');
 }
 
 /**
- * format number with commas
+ * format a number with commas
  *
  * @param {Integer} num
  * @return {String}
  */
-function formatNumberWithCommas(num){
+function withCommas(num){
 	return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-/**
- * format seconds into time remaining
- *
- * @param {Float} seconds
- * @return {String}
- */
-function formatSecondsIntoTimeRemaining(seconds){
-
-	// init
-	var delta = Math.abs(seconds);
-
-	// days
-	var days = Math.floor(delta / 86400);
-	delta -= days * 86400;
-
-	// hours
-	var hours = Math.floor(delta / 3600) % 24;
-	delta -= hours * 3600;
-
-	// minutes
-	var minutes = Math.floor(delta / 60) % 60;
-	delta -= minutes * 60;
-
-	// seconds
-	seconds = delta % 60;
-
-	// format
-	return _.compact([
-		days ? days + 'd ' : null,
-		hours ? hours + 'h ' : null,
-		minutes ? minutes + 'm ' : null,
-		seconds ? seconds + 's' : null
-	]).join();
 }
 
 /**
@@ -150,7 +115,7 @@ function countMatches(find, source, ignoreCase){
 }
 
 /**
- * rewrite serialized strings within SQL content
+ * rewrite serialized SQL values
  *
  * @param {String} sql
  * @param {String} find
@@ -158,13 +123,13 @@ function countMatches(find, source, ignoreCase){
  * @param {Function} callback
  * @return {String}
  */
-function rewriteSerializedStrings(sql, find, replace, callback){
+function rewriteSerializedSql(sql, find, replace, callback){
 
 	// get all serialized strings from sql
 	var strings = findSerializedStrings(sql);
 
 	// get serialized string count
-	var stringCountOutput = formatNumberWithCommas(strings.length);
+	var stringCountOutput = withCommas(strings.length);
 	if (program.verbose){
 		console.log('SERIALIZED STRINGS: ' + stringCountOutput);
 	}
@@ -190,7 +155,7 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 	});
 
 	// get serialized match count
-	var replaceCountOutput = formatNumberWithCommas(replaceCount);
+	var replaceCountOutput = withCommas(replaceCount);
 	if (program.verbose){
 		console.log('SERIALIZED MATCHES: ' + replaceCountOutput);
 	}
@@ -218,8 +183,8 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 			sql = sql.replace(re, 's:' + strings[idx].rewriteChars + ':"' + strings[idx].rewriteValue + '"');
 			idx++;
 			bar.tick({
-				outputCurrent: formatNumberWithCommas(idx),
-				outputTotal: formatNumberWithCommas(replaceCount)
+				outputCurrent: withCommas(idx),
+				outputTotal: withCommas(replaceCount)
 			});
 
 			if (bar.complete){
@@ -240,15 +205,15 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 }
 
 /**
- * start script
+ * initialize script
  *
  * @param {Function} callback
  * @return {Void}
  */
-function start(callback){
+function initialize(callback){
 
 	// get sql
-	var sql = getFileContents(options.input);
+	var sql = readFile(options.input);
 	if (!sql){
 		return callback(new Error('MISSING SQL'));
 	}
@@ -268,7 +233,7 @@ function start(callback){
 		console.log('INPUT: ' + data.input);
 		console.log('FIND: ' + data.find);
 		console.log('REPLACE: ' + data.replace);
-		console.log('MATCHES: ' + formatNumberWithCommas(data.count));
+		console.log('MATCHES: ' + withCommas(data.count));
 	}
 
 	// ready to start
@@ -291,7 +256,7 @@ function reserialize(data, callback){
 	}
 
 	// rewrite serialized strings
-	rewriteSerializedStrings(data.sql, data.find, data.replace, function(err, sql){
+	rewriteSerializedSql(data.sql, data.find, data.replace, function(err, sql){
 		data.sql = sql;
 		callback(err, data);
 	});
@@ -321,20 +286,26 @@ function rewrite(data, callback){
 }
 
 /**
- * finish script
+ * complete script
  *
  * @param {String} err
  * @param {Object} data
  * @return {Void}
  */
-function finish(err, data){
+function complete(err, data){
+
+	// error
 	if (!!err){
 		console.error(err);
 		process.exit(1);
 	}
-	putFileContents(data.output, data.sql);
+
+	// write file
+	writeFile(data.output, data.sql);
+
+	// finished
 	if (program.verbose){
-		console.log('POST MATCHES: ' + formatNumberWithCommas(countMatches(data.find, data.sql)));
+		console.log('POST MATCHES: ' + withCommas(countMatches(data.find, data.sql)));
 		console.log('OUTPUT: ' + data.output);
 	}
 	process.exit(0);
@@ -345,8 +316,8 @@ function finish(err, data){
 //=================================================================//
 
 async.waterfall([
-	start,
+	initialize,
 	reserialize,
 	rewrite
-], finish);
+], complete);
 
