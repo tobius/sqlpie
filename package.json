@@ -1,6 +1,6 @@
 {
   "name": "sqlpie",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI find/replace for SQL files",
   "main": "index.js",
   "dependencies": {
@@ -10,8 +10,9 @@
     "progress": "^2.0.0"
   },
   "devDependencies": {},
+  "preferGlobal": "true",
   "bin": {
-    "sqlpie": "./bin/sqlpie"
+    "sqlpie": "bin/sqlpie"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
