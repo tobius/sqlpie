@@ -1,0 +1,29 @@
+{
+  "name": "sqlpie",
+  "version": "0.1.0",
+  "description": "CLI find/replace for SQL files",
+  "main": "index.js",
+  "dependencies": {
+    "async": "^2.5.0",
+    "lodash": "^4.17.4",
+    "commander": "^2.11.0",
+    "progress": "^2.0.0"
+  },
+  "devDependencies": {},
+  "bin": {
+    "sqlpie": "./bin/sqlpie"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tobius/sqlpie.git"
+  },
+  "author": "Toby Miller <tobius.miller@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tobius/sqlpie/issues"
+  },
+  "homepage": "https://github.com/tobius/sqlpie#readme"
+}
