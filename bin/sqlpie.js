@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// modules
+// load required modules
 var _ = require('lodash'),
 	async = require('async'),
 	fs = require('fs'),
@@ -8,33 +8,31 @@ var _ = require('lodash'),
 	program = require('commander'),
 	ProgressBar = require('progress');
 
-// cli config
+// configure cli options
 program
 	.version(pjson.version)
 	.option('-i, --input <input-file>', 'Input File')
-	.option('-o, --output <output-file>', 'Output File')
+	.option('-o, --output [output-file]', 'Output File (default=stdout)')
 	.option('-f, --find <find-string>', 'Find String')
 	.option('-r, --replace <replace-string>', 'Replace String')
-	.option('-v, --verbose [boolean]', 'Verbose Output', function(value){
+	.option('-v, --verbose [boolean]', 'Verbose Output (default=false)', function(value){
 		value = value === null || value === undefined ? '' : value;
 		value = value.toString().toLowerCase().trim();
 		return /^1|(true)$/.test(value);
 	}, false)
 	.parse(process.argv);
 
-// cli options
+// organize cli options
 var options = {
 	input: program.input,
 	output: program.output,
 	find: program.find,
-	replace: program.replace
+	replace: program.replace,
+	verbose: program.verbose
 };
 
-// test verbosity
-var verbose = program.verbose;
-
-// all or nothing
-if (_.compact(_.values(options)).length !== 4){
+// test cli options
+if (!options.input || !options.find || !options.replace){
 	return program.outputHelp();
 }
 
@@ -43,12 +41,12 @@ if (_.compact(_.values(options)).length !== 4){
 //=================================================================//
 
 /**
- * get file contents
+ * read file contents
  *
  * @param {String} path
  * @return {String}
  */
-function getFileContents(path){
+function readFile(path){
 	var contents = '';
 	try {
 		if (fs.lstatSync(path).isFile()){
@@ -59,59 +57,24 @@ function getFileContents(path){
 }
 
 /**
- * put file contents
+ * write file contents
  *
  * @param {String} path
  * @param {String} contents
  * @return {Void}
  */
-function putFileContents(path, contents){
+function writeFile(path, contents){
 	fs.writeFileSync(path, contents, 'utf8');
 }
 
 /**
- * format number with commas
+ * format a number with commas
  *
  * @param {Integer} num
  * @return {String}
  */
-function formatNumberWithCommas(num){
+function withCommas(num){
 	return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-/**
- * format seconds into time remaining
- *
- * @param {Float} seconds
- * @return {String}
- */
-function formatSecondsIntoTimeRemaining(seconds){
-
-	// init
-	var delta = Math.abs(seconds);
-
-	// days
-	var days = Math.floor(delta / 86400);
-	delta -= days * 86400;
-
-	// hours
-	var hours = Math.floor(delta / 3600) % 24;
-	delta -= hours * 3600;
-
-	// minutes
-	var minutes = Math.floor(delta / 60) % 60;
-	delta -= minutes * 60;
-
-	// seconds
-	var seconds = delta % 60;
-
-	// format
-	return _.compact([
-		days ? days + 'd ' : null,
-		hours ? hours + 'h ' : null,
-		minutes ? minutes + 'm ' : null,
-		seconds ? seconds + 's' : null
-	]).join();
 }
 
 /**
@@ -150,7 +113,7 @@ function countMatches(find, source, ignoreCase){
 }
 
 /**
- * rewrite serialized strings within SQL content
+ * rewrite serialized SQL values
  *
  * @param {String} sql
  * @param {String} find
@@ -158,15 +121,15 @@ function countMatches(find, source, ignoreCase){
  * @param {Function} callback
  * @return {String}
  */
-function rewriteSerializedStrings(sql, find, replace, callback){
+function rewriteSerializedSql(sql, find, replace, callback){
 
 	// get all serialized strings from sql
 	var strings = findSerializedStrings(sql);
 
-	// @todo use verbose level
-	var stringCountOutput = formatNumberWithCommas(strings.length);
-	if (program.verbose){
-		console.log('SERIALIZED STRINGS: ' + stringCountOutput);
+	// get serialized string count
+	var stringCountOutput = withCommas(strings.length);
+	if (options.verbose){
+		console.log('-- SERIALIZED STRINGS: ' + stringCountOutput);
 	}
 
 	// create rewrite values
@@ -183,23 +146,28 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 		}
 		return string;
 	});
+
+	// remove empties
 	strings = _.filter(strings, function(string){
 		return string.rewriteChars !== 0;
 	});
-	// @todo use verbose level
-	var replaceCountOutput = formatNumberWithCommas(replaceCount);
-	if (program.verbose){
-		console.log('SERIALIZED MATCHES: ' + replaceCountOutput);
+
+	// get serialized match count
+	var replaceCountOutput = withCommas(replaceCount);
+	if (options.verbose){
+		console.log('-- SERIALIZED MATCHES: ' + replaceCountOutput);
 	}
 
+	// stop if we can
 	if (replaceCount === 0){
 		return callback(null, sql);
 	}
 
-	if (program.verbose){
+	// everybody loves feedback
+	if (options.verbose){
 
 		// replace while showing a loading bar
-		var bar = new ProgressBar('REWRITING STRINGS: :outputCurrent of :outputTotal | :percent' , {
+		var bar = new ProgressBar('-- REWRITING STRINGS: :outputCurrent of :outputTotal | :percent' , {
 			incomplete: '-',
 			complete: '=',
 			renderThrottle: 16,
@@ -213,8 +181,8 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 			sql = sql.replace(re, 's:' + strings[idx].rewriteChars + ':"' + strings[idx].rewriteValue + '"');
 			idx++;
 			bar.tick({
-				outputCurrent: formatNumberWithCommas(idx),
-				outputTotal: formatNumberWithCommas(replaceCount)
+				outputCurrent: withCommas(idx),
+				outputTotal: withCommas(replaceCount)
 			});
 
 			if (bar.complete){
@@ -235,17 +203,17 @@ function rewriteSerializedStrings(sql, find, replace, callback){
 }
 
 /**
- * start script
+ * initialize script
  *
  * @param {Function} callback
  * @return {Void}
  */
-function start(callback){
+function initialize(callback){
 
 	// get sql
-	var sql = getFileContents(options.input);
+	var sql = readFile(options.input);
 	if (!sql){
-		return callback(new Error('MISSING SQL'));
+		return callback('MISSING SQL');
 	}
 
 	// organize data
@@ -259,11 +227,11 @@ function start(callback){
 	};
 
 	// verbose output
-	if (program.verbose){
-		console.log('INPUT: ' + data.input);
-		console.log('FIND: ' + data.find);
-		console.log('REPLACE: ' + data.replace);
-		console.log('MATCHES: ' + formatNumberWithCommas(data.count));
+	if (options.verbose){
+		console.log('-- INPUT: ' + data.input);
+		console.log('-- FIND: ' + data.find);
+		console.log('-- REPLACE: ' + data.replace);
+		console.log('-- MATCHES: ' + withCommas(data.count));
 	}
 
 	// ready to start
@@ -286,7 +254,7 @@ function reserialize(data, callback){
 	}
 
 	// rewrite serialized strings
-	rewriteSerializedStrings(data.sql, data.find, data.replace, function(err, sql){
+	rewriteSerializedSql(data.sql, data.find, data.replace, function(err, sql){
 		data.sql = sql;
 		callback(err, data);
 	});
@@ -316,22 +284,40 @@ function rewrite(data, callback){
 }
 
 /**
- * finish script
+ * complete script
  *
  * @param {String} err
  * @param {Object} data
  * @return {Void}
  */
-function finish(err, data){
+function complete(err, data){
+
+	// error
 	if (!!err){
 		console.error(err);
 		process.exit(1);
 	}
-	putFileContents(data.output, data.sql);
-	if (program.verbose){
-		console.log('POST MATCHES: ' + formatNumberWithCommas(countMatches(data.find, data.sql)));
-		console.log('OUTPUT: ' + data.output);
+
+	// recount
+	var count = countMatches(data.find, data.sql);
+	if (count !== 0){
+		if (options.verbose){
+			console.error('-- MISSED ' + count + ' INSTANCES');
+		}
+		process.exit(1);
 	}
+
+	// write file
+	if (options.output){
+		writeFile(data.output, data.sql);
+		if (options.verbose){
+			console.log('-- OUTPUT: ' + data.output);
+		}
+	} else {
+		console.log(data.sql);
+	}
+
+	// done
 	process.exit(0);
 }
 
@@ -340,44 +326,8 @@ function finish(err, data){
 //=================================================================//
 
 async.waterfall([
-	start,
+	initialize,
 	reserialize,
 	rewrite
-], finish);
-
-/*
-// input
-console.info('READING SQL FROM ' + options.input);
-var inputSql = getFileContents(options.input);
-
-// pretest
-var count = countMatches(options.find, inputSql);
-var countOutput = formatNumberWithCommas(count);
-console.log('FOUND ' + countOutput + ' INSTANCES OF "' + options.find + '"');
-if (count === 0){
-	console.log('SKIPPING WRITE');
-	process.exit();
-}
-
-// rewrite
-rewriteSerializedStrings(inputSql, options.find, options.replace, function(err, outputSql){
-
-	// retest
-	count = countMatches(options.find, outputSql);
-	countOutput = formatNumberWithCommas(count);
-	console.log('FOUND ' + countOutput + ' REMAINING INSTANCES OF "' + options.find + '"');
-	if (count === 0){
-		console.info('WRITING SQL TO ' + options.output);
-		putFileContents(options.output, outputSql);
-		process.exit();
-	}
-
-	var re = new RegExp(options.find, 'gm');
-	outputSql = outputSql.replace(re, options.replace);
-	console.log('REWRITING REMAINING ' + countOutput + ' STRINGS');
-	console.info('WRITING SQL TO ' + options.output);
-	putFileContents(options.output, outputSql);
-	process.exit();
-});
-*/
+], complete);
 
